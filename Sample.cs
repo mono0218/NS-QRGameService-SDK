@@ -3,12 +3,28 @@ using NSQRGameService;
 
 public class Sample : MonoBehaviour
 {
-    // Start is called before the first frame update
+    public string apiUrl;
+    public string apiKey;
+    public int addPointNumber;
+    private GameService gameService;
+    
     async void Start()
     {
-        GameService gameService = new("http://localhost:3000", "*****");
-    
-        var response = await gameService.GetGameService();
-        Debug.Log(response.data.gameId);
+        GameObject gobject = GetComponent<GameObject>();
+        gobject.SetActive(false);
+        gameService = new();
+        gameService.Initialize(apiUrl, apiKey);
+    }
+
+    async void addPoint()
+    {
+        GameObject gobject = GetComponent<GameObject>();
+        
+        gobject.SetActive(true);
+        Renderer renderer = GetComponent<Renderer>();
+        var response = await gameService.AllProcess(addPointNumber,renderer);
+        
+        Debug.Log(response);
+        gobject.SetActive(false);
     }
 }

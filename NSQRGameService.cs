@@ -2,7 +2,8 @@ using UnityEngine;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System;
-using Unity.Plastic.Newtonsoft.Json;
+using JetBrains.Annotations;
+using UnityEditor.PackageManager;
 
 namespace NSQRGameService
 {
@@ -11,12 +12,12 @@ namespace NSQRGameService
         private string apiUrl;
         private string apiKey;
         private HttpClient client;
-
-        public GameService(string url, string key)
+        public void Initialize(string url, string key)
         {
             client = new HttpClient();
             apiUrl = url;
             apiKey = key;
+            client.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
         }
 
         [Serializable]
@@ -37,15 +38,12 @@ namespace NSQRGameService
 
         public async Task<GameServiceResponse> GetGameService()
         {
-            client.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
             var response = await client.GetAsync(apiUrl+"/service/getGameService");
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
             return JsonUtility.FromJson<GameServiceResponse>(json);
         }
-
-
 
         [Serializable]
         public class GetUserInfoeResponseData
@@ -73,7 +71,7 @@ namespace NSQRGameService
 
         public async Task<GetUserInfoResponse> GetUserInfo(GetUserInfoRequestData data)
         {
-            client.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
+            
             string jsonData = JsonUtility.ToJson(data);
             StringContent content = new StringContent(jsonData, System.Text.Encoding.UTF8, "application/json");
             var response = await client.PostAsync(apiUrl+"/service/getUserInfo",content);
@@ -111,7 +109,7 @@ namespace NSQRGameService
 
         public async Task<SetUserInfoResponse> SetUserInfo(SetUserInfoRequestData data)
         {
-            client.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
+            
             string jsonData = JsonUtility.ToJson(data);
             StringContent content = new StringContent(jsonData, System.Text.Encoding.UTF8, "application/json");
             var response = await client.PostAsync(apiUrl+"/service/setUserInfo",content);
@@ -147,7 +145,7 @@ namespace NSQRGameService
         }
         public async Task<AddUserPointResponse> AddUserPoint(AddUserPointRequestData data)
         {
-            client.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
+            
             string jsonData = JsonUtility.ToJson(data);
             StringContent content = new StringContent(jsonData, System.Text.Encoding.UTF8, "application/json");
             var response = await client.PostAsync(apiUrl+"/service/addUserPoint",content);
@@ -171,9 +169,9 @@ namespace NSQRGameService
             public GetCodeResponseData data;
             public string error; // errorがnullであっても、文字列型で扱う
         }
+
         public async Task<GetCodeResponse> GetCode()
         {
-            client.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
             var response = await client.GetAsync(apiUrl+"/service/getCode");
             response.EnsureSuccessStatusCode();
             var json = await response.Content.ReadAsStringAsync();
@@ -186,44 +184,107 @@ namespace NSQRGameService
         {
             public string code;
         }
+        
+        [Serializable]
+        public class GetResultCodeResponseData{
+            [CanBeNull] public string resultUUID;
+        }
 
         [Serializable]
         public class GetResultCodeResponse{
-
             public bool success;
+            public GetResultCodeResponseData data;
             public string error; 
         }
-
-        [Serializable]
-        public class GetResultCodeResponseData
-        {
-            public GetResultCodeResponseData data;
-        }
-
-        [Serializable]
-        public class GetResultCodeSuccessResponse : GetResultCodeResponse
-        {
-            public GetResultCodeResponseData data;
-        }
-
+        
         public async Task<GetResultCodeResponse> GetResultCode(GetResultCodeRequestData data)
         {
-            client.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
             string jsonData = JsonUtility.ToJson(data);
             StringContent content = new StringContent(jsonData, System.Text.Encoding.UTF8, "application/json");
-
             var response = await client.PostAsync(apiUrl+"/service/getResultCode",content);
-            if (response.StatusCode.ToString() == "404")
+            response.EnsureSuccessStatusCode();
+            
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonUtility.FromJson<GetResultCodeResponse>(json);
+        }
+        
+        public async Task LoadImage(string url, Renderer renderer)
+        {
+            try
             {
-                GetResultCodeResponse json = new GetResultCodeResponse{
-                    success = false,
-                    error = "404"
-                };
-                return json;
-            }else{
-                var json = await response.Content.ReadAsStringAsync();
-                return JsonUtility.FromJson<GetResultCodeSuccessResponse>(json);
+                byte[] imageData = await client.GetByteArrayAsync(url);
+                Texture2D texture = new Texture2D(2, 2); // 初期サイズは適当で大丈夫
+                texture.LoadImage(imageData); // 画像データをテクスチャに読み込み
+                
+                if (renderer != null)
+                {
+                    // マテリアルのメインテクスチャにテクスチャを設定
+                    renderer.material.mainTexture = texture;
+                }
+                else
+                {
+                    Debug.LogError("Rendererコンポーネントが見つかりません。");
+                }
             }
+            catch (HttpRequestException e)
+            {
+                Debug.LogError($"HTTPリクエストエラー: {e.Message}");
+            }
+        }
+
+        public async Task<string> AllProcess(int point, Renderer renderer)
+        {
+            GetCodeResponse codeData = await GetCode();
+            await LoadImage($"https://api.qrserver.com/v1/create-qr-code/?data={codeData.data.loginCode}&size=200x200", renderer);
+            
+            bool isLogin = false;
+            string uuid = "";
+            
+            while (!isLogin)
+            {
+                try
+                {
+                    GetResultCodeRequestData resultData = new GetResultCodeRequestData
+                    {
+                        code = codeData.data.loginCode
+                    };
+
+                    GetResultCodeResponse result = await GetResultCode(resultData);
+
+                    if (result.data.resultUUID != "")
+                    {
+                        Debug.Log(result.data.resultUUID);
+                        uuid = result.data.resultUUID;
+                        isLogin = true;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError(e);
+                }
+                
+                await Task.Delay(5000);
+            }
+            
+            bool isFinish = false;
+
+            while (!isFinish)
+            {
+                if (uuid != "")
+                {
+                   AddUserPointRequestData addData = new AddUserPointRequestData{
+                       uuid = uuid,
+                       point = point
+                   };
+                   
+                   await AddUserPoint(addData); 
+                   Debug.Log(addData);
+                   isFinish = true;
+                }
+                await Task.Delay(5000);
+            }
+            
+            return "success";
         }
     }
 }
