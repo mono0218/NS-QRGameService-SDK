@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using UnityEngine;
 using NSQRGameService;
 
@@ -7,19 +8,19 @@ public class Sample : MonoBehaviour
     public string apiKey;
     public int addPointNumber;
     private GameService gameService;
+    public GameObject gobject;
     
     async void Start()
     {
-        GameObject gobject = GetComponent<GameObject>();
         gobject.SetActive(false);
         gameService = new();
         gameService.Initialize(apiUrl, apiKey);
+        
+        await addPoint();
     }
 
-    async void addPoint()
+    async Task addPoint()
     {
-        GameObject gobject = GetComponent<GameObject>();
-        
         gobject.SetActive(true);
         Renderer renderer = GetComponent<Renderer>();
         var response = await gameService.AllProcess(addPointNumber,renderer);
