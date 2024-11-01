@@ -143,15 +143,21 @@ namespace NSQRGameService
             public string uuid;
             public int point;
         }
-        public async Task<AddUserPointResponse> AddUserPoint(AddUserPointRequestData data)
+        public async Task AddUserPoint(AddUserPointRequestData data)
         {
+            try
+            {
+                string jsonData = JsonUtility.ToJson(data);
+                StringContent content = new StringContent(jsonData, System.Text.Encoding.UTF8, "application/json");
+                var response = await client.PostAsync(apiUrl+"/service/addUserPoint",content);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
             
-            string jsonData = JsonUtility.ToJson(data);
-            StringContent content = new StringContent(jsonData, System.Text.Encoding.UTF8, "application/json");
-            var response = await client.PostAsync(apiUrl+"/service/addUserPoint",content);
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonUtility.FromJson<AddUserPointResponse>(json);
         }
 
 
@@ -260,7 +266,6 @@ namespace NSQRGameService
                 }
                 catch (Exception e)
                 {
-                    Debug.LogError(e);
                 }
                 
                 await Task.Delay(5000);
@@ -288,3 +293,4 @@ namespace NSQRGameService
         }
     }
 }
+
