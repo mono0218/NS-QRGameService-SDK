@@ -3,7 +3,6 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System;
 using JetBrains.Annotations;
-using UnityEditor.PackageManager;
 
 namespace NSQRGameService
 {
@@ -19,128 +18,11 @@ namespace NSQRGameService
             apiKey = key;
             client.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
         }
-
-        [Serializable]
-        public class GameServiceResponseData
-        {
-            public int gameId;
-            public string adminUserId;
-            public int playMoney;
-        }
-
-        [Serializable]
-        public class GameServiceResponse
-        {
-            public bool success;
-            public GameServiceResponseData data;
-            public string error; // errorがnullであっても、文字列型で扱う
-        }
-
-        public async Task<GameServiceResponse> GetGameService()
-        {
-            var response = await client.GetAsync(apiUrl+"/service/getGameService");
-            response.EnsureSuccessStatusCode();
-
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonUtility.FromJson<GameServiceResponse>(json);
-        }
-
-        [Serializable]
-        public class GetUserInfoeResponseData
-        {
-            public int uuid;
-            public string userName;
-
-            public string userInfo;
-        }
-
-        [Serializable]
-        public class GetUserInfoResponse
-        {
-            public bool success;
-            public GetUserInfoeResponseData data;
-            public string error; // errorがnullであっても、文字列型で扱う
-        }
-
-        [Serializable]
-        public class GetUserInfoRequestData
-        {
-            public string uuid;
-        }
-
-
-        public async Task<GetUserInfoResponse> GetUserInfo(GetUserInfoRequestData data)
-        {
-            
-            string jsonData = JsonUtility.ToJson(data);
-            StringContent content = new StringContent(jsonData, System.Text.Encoding.UTF8, "application/json");
-            var response = await client.PostAsync(apiUrl+"/service/getUserInfo",content);
-            response.EnsureSuccessStatusCode();
-
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonUtility.FromJson<GetUserInfoResponse>(json);
-        }
-
-
-
-        [Serializable]
-        public class SetUserInfoResponseData
-        {
-            public int uuid;
-            public string userName;
-
-            public string userInfo;
-        }
-
-        [Serializable]
-        public class SetUserInfoResponse
-        {
-            public bool success;
-            public SetUserInfoResponseData data;
-            public string error; // errorがnullであっても、文字列型で扱う
-        }
-
-        [Serializable]
-        public class SetUserInfoRequestData
-        {
-            public string uuid;
-            public string data;
-        }
-
-        public async Task<SetUserInfoResponse> SetUserInfo(SetUserInfoRequestData data)
-        {
-            
-            string jsonData = JsonUtility.ToJson(data);
-            StringContent content = new StringContent(jsonData, System.Text.Encoding.UTF8, "application/json");
-            var response = await client.PostAsync(apiUrl+"/service/setUserInfo",content);
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-
-            return JsonUtility.FromJson<SetUserInfoResponse>(json);
-        }
-
-
-
-        [Serializable]
-        public class AddUserPointResponseData
-        {
-            public string uuid;
-
-            public int money;
-        }
-
-        [Serializable]
-        public class AddUserPointResponse
-        {
-            public bool success;
-            public AddUserPointResponseData data;
-            public string error; // errorがnullであっても、文字列型で扱う
-        }
-
+        
         [Serializable]
         public class AddUserPointRequestData
         {
-            public string uuid;
+            public string userId;
             public int point;
         }
         public async Task AddUserPoint(AddUserPointRequestData data)
@@ -149,7 +31,7 @@ namespace NSQRGameService
             {
                 string jsonData = JsonUtility.ToJson(data);
                 StringContent content = new StringContent(jsonData, System.Text.Encoding.UTF8, "application/json");
-                var response = await client.PostAsync(apiUrl+"/service/addUserPoint",content);
+                var response = await client.PostAsync(apiUrl+"/v1/service/points",content);
                 response.EnsureSuccessStatusCode();
             }
             catch (Exception e)
@@ -159,13 +41,11 @@ namespace NSQRGameService
             }
             
         }
-
-
-
+        
         [Serializable]
         public class GetCodeResponseData
         {
-            public string loginCode;
+            public string code;
         }
 
         [Serializable]
@@ -173,41 +53,36 @@ namespace NSQRGameService
         {
             public bool success;
             public GetCodeResponseData data;
-            public string error; // errorがnullであっても、文字列型で扱う
+            public string message; // errorがnullであっても、文字列型で扱う
         }
 
         public async Task<GetCodeResponse> GetCode()
         {
-            var response = await client.GetAsync(apiUrl+"/service/getCode");
+            var response = await client.GetAsync(apiUrl+"/v1/qrcode");
             response.EnsureSuccessStatusCode();
             var json = await response.Content.ReadAsStringAsync();
             return JsonUtility.FromJson<GetCodeResponse>(json);
         }
-
-
-        [Serializable]
-        public class GetResultCodeRequestData
-        {
-            public string code;
-        }
         
         [Serializable]
-        public class GetResultCodeResponseData{
-            [CanBeNull] public string resultUUID;
+        public class GetResultCodeResponseData
+        {
+            public bool isDone;
+            public string id;
+            public string username;
+            public int point;
         }
 
         [Serializable]
         public class GetResultCodeResponse{
             public bool success;
             public GetResultCodeResponseData data;
-            public string error; 
+            public string message; 
         }
         
-        public async Task<GetResultCodeResponse> GetResultCode(GetResultCodeRequestData data)
+        public async Task<GetResultCodeResponse> GetResultCode(string qrcode)
         {
-            string jsonData = JsonUtility.ToJson(data);
-            StringContent content = new StringContent(jsonData, System.Text.Encoding.UTF8, "application/json");
-            var response = await client.PostAsync(apiUrl+"/service/getResultCode",content);
+            var response = await client.GetAsync(apiUrl+"/v1/qrcode/"+qrcode);
             response.EnsureSuccessStatusCode();
             
             var json = await response.Content.ReadAsStringAsync();
@@ -241,7 +116,7 @@ namespace NSQRGameService
         public async Task<string> AllProcess(int point, Renderer renderer)
         {
             GetCodeResponse codeData = await GetCode();
-            await LoadImage($"https://api.qrserver.com/v1/create-qr-code/?data={codeData.data.loginCode}&size=200x200", renderer);
+            await LoadImage($"https://api.qrserver.com/v1/create-qr-code/?data={codeData.data.code}&size=200x200", renderer);
             
             bool isLogin = false;
             string uuid = "";
@@ -250,22 +125,18 @@ namespace NSQRGameService
             {
                 try
                 {
-                    GetResultCodeRequestData resultData = new GetResultCodeRequestData
-                    {
-                        code = codeData.data.loginCode
-                    };
+                    GetResultCodeResponse result = await GetResultCode(codeData.data.code);
+                    Debug.Log(result.data.isDone);
 
-                    GetResultCodeResponse result = await GetResultCode(resultData);
-
-                    if (result.data.resultUUID != "")
+                    if (result.data.isDone)
                     {
-                        Debug.Log(result.data.resultUUID);
-                        uuid = result.data.resultUUID;
+                        uuid = result.data.id;
                         isLogin = true;
                     }
                 }
                 catch (Exception e)
                 {
+                    Debug.Log(e.Message);
                 }
                 
                 await Task.Delay(5000);
@@ -278,7 +149,7 @@ namespace NSQRGameService
                 if (uuid != "")
                 {
                    AddUserPointRequestData addData = new AddUserPointRequestData{
-                       uuid = uuid,
+                       userId = uuid,
                        point = point
                    };
                    
